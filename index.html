@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elliptic Curve Visualizer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Elliptic Curve Visualizer (y² = x³ + ax + b)</h1>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Curve Parameters</h2>
+            <label for="param-a">a:</label>
+            <input type="number" id="param-a" value="-1" step="0.1">
+            <label for="param-b">b:</label>
+            <input type="number" id="param-b" value="1" step="0.1">
+            <button id="plot-curve-btn">Plot Curve</button>
+            <p>Discriminant: <span id="discriminant">Δ = ?</span></p>
+            <hr>
+
+            <h2>Points</h2>
+            <div class="point-input">
+                <label>P = (</label>
+                <input type="number" id="point-p-x" placeholder="x₁" step="0.1">,
+                <input type="number" id="point-p-y" placeholder="y₁" step="0.1">
+                <label>)</label>
+                <button id="plot-p-btn">Plot P</button>
+            </div>
+             <div class="point-input">
+                <label>Q = (</label>
+                <input type="number" id="point-q-x" placeholder="x₂" step="0.1">,
+                <input type="number" id="point-q-y" placeholder="y₂" step="0.1">
+                <label>)</label>
+                 <button id="plot-q-btn">Plot Q</button>
+            </div>
+            <p>Click on graph to select points (approx).</p>
+            <hr>
+
+            <h2>Operations</h2>
+             <button id="add-points-btn" disabled>Calculate P + Q</button>
+             <button id="double-point-btn" disabled>Calculate 2P</button>
+             <br><br>
+            <label for="scalar-k">Scalar k:</label>
+            <input type="number" id="scalar-k" value="3" min="1" step="1">
+            <button id="scalar-multiply-btn" disabled>Calculate k * P</button>
+            <hr>
+
+            <h2>Result</h2>
+            <p id="result-text">Result: O (Point at Infinity)</p>
+            <p id="info-text">Status messages will appear here.</p>
+             <button id="reset-btn">Reset All</button>
+
+        </div>
+
+        <div class="visualization">
+            <h2>Visualization</h2>
+            <canvas id="ec-canvas" width="600" height="600"></canvas>
+            <div class="canvas-controls">
+                <label>Zoom:</label>
+                <input type="range" id="zoom-slider" min="10" max="100" value="30" step="1">
+                <label>Pan X:</label>
+                <input type="range" id="pan-x-slider" min="-300" max="300" value="0" step="5">
+                 <label>Pan Y:</label>
+                <input type="range" id="pan-y-slider" min="-300" max="300" value="0" step="5">
+            </div>
+        </div>
+    </div>
+
+    <script src="js/point.js"></script>
+    <script src="js/ellipticCurve.js"></script>
+    <script src="js/operations.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

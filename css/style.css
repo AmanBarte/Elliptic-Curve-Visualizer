@@ -1,0 +1,129 @@
+body {
+    font-family: sans-serif;
+    line-height: 1.6;
+    margin: 20px;
+    background-color: #f4f4f4;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #333;
+}
+
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+}
+
+.controls, .visualization {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.controls {
+    flex-basis: 350px; /* Minimum width for controls */
+    flex-grow: 1;
+}
+
+.visualization {
+    flex-basis: 620px; /* Accommodate canvas width + padding */
+    flex-grow: 2;
+    text-align: center; /* Center canvas */
+}
+
+
+label {
+    display: inline-block; /* Keep labels next to inputs */
+    margin-right: 5px;
+    margin-bottom: 5px; /* Add space below */
+    color: #555;
+}
+
+input[type="number"] {
+    width: 70px; /* Adjust width as needed */
+    padding: 8px;
+    margin-right: 10px; /* Space after input */
+    margin-bottom: 10px; /* Space below input row */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+button {
+    background-color: #5c67f2;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 5px 5px 5px 0; /* Add some margin around buttons */
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background-color: #4a54e1;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+
+#ec-canvas {
+    border: 1px solid #ccc;
+    background-color: #fff;
+    display: block; /* Remove extra space below canvas */
+    margin: 10px auto; /* Center canvas */
+    cursor: crosshair;
+}
+
+.point-input {
+    margin-bottom: 10px;
+}
+
+#result-text {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #2a9d8f; /* Teal color for results */
+    min-height: 1.5em; /* Prevent layout shift */
+}
+
+#info-text {
+    color: #e76f51; /* Orange/Red for info/errors */
+    min-height: 1.5em; /* Prevent layout shift */
+    font-style: italic;
+}
+
+#discriminant {
+    font-style: italic;
+    color: #666;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #eee;
+    margin: 20px 0;
+}
+
+.canvas-controls {
+    margin-top: 15px;
+    display: flex;
+    align-items: center; /* Vertically align items */
+    justify-content: center; /* Center items horizontally */
+    gap: 10px; /* Space between controls */
+    flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+}
+
+.canvas-controls label {
+    margin-bottom: 0; /* Remove bottom margin for inline display */
+}
+
+.canvas-controls input[type="range"] {
+    width: 120px; /* Adjust slider width */
+    vertical-align: middle; /* Align slider with label */
+}
