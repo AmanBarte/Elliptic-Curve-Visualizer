@@ -49,14 +49,25 @@
 
             <h2>Result</h2>
             <p id="result-text">Result: O (Point at Infinity)</p>
-            <p id="info-text">Status messages will appear here.</p>
-             <button id="reset-btn">Reset All</button>
+            <p id="info-text" class="info">Status messages will appear here.</p> <button id="reset-btn">Reset All</button>
 
         </div>
 
         <div class="visualization">
             <h2>Visualization</h2>
+
+            <div class="legend">
+                <h4>Legend:</h4>
+                <ul>
+                    <li><span class="legend-color p-color"></span> Point P</li>
+                    <li><span class="legend-color q-color"></span> Point Q</li>
+                    <li><span class="legend-color r-color"></span> Result R</li>
+                    <li><span class="legend-color secant-color"></span> Addition Line (P+Q)</li>
+                    <li><span class="legend-color tangent-color"></span> Doubling Line (2P)</li>
+                </ul>
+            </div>
             <canvas id="ec-canvas" width="600" height="600"></canvas>
+
             <div class="canvas-controls">
                 <label>Zoom:</label>
                 <input type="range" id="zoom-slider" min="10" max="100" value="30" step="1">

@@ -27,14 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let P = null;
     let Q = null;
     let R = null; // Result point
+    let R_prime = null; // Intermediate point (R')
     let lineP1 = null; // For visualizing addition/doubling lines
     let lineP2 = null;
     let isTangentLine = false;
 
     // --- Utility Functions ---
-    function displayInfo(message, isError = false) {
+    function displayInfo(message, type = 'info') { // type can be 'info', 'warning', 'error'
         infoText.textContent = message;
-        infoText.style.color = isError ? '#e76f51' : '#666'; // Use error color if specified
+        infoText.className = type; // Set class for styling
     }
 
     function displayResult(point) {
@@ -46,9 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const pExists = P && !P.isInfinity();
         const qExists = Q && !Q.isInfinity();
 
-        addPointsBtn.disabled = !(pExists && qExists);
-        doublePointBtn.disabled = !pExists;
-        scalarMultiplyBtn.disabled = !pExists;
+        addPointsBtn.disabled = !(curve && pExists && qExists && curve.isPointOnCurve(P) && curve.isPointOnCurve(Q));
+        doublePointBtn.disabled = !(curve && pExists && curve.isPointOnCurve(P));
+        // Enable scalar multiply if P is valid and on the curve
+        scalarMultiplyBtn.disabled = !(curve && pExists && curve.isPointOnCurve(P));
     }
 
     function resetState(clearInputs = false) {
@@ -56,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         P = null;
         Q = null;
         R = null;
+        R_prime = null; // Reset intermediate point
         lineP1 = null;
         lineP2 = null;
         isTangentLine = false;
@@ -74,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
         displayInfo("State reset.");
         displayResult(POINT_INFINITY); // Reset result display
         updateButtonStates();
-        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine); // Update canvas
+        // Update visualization call with null for R_prime
+        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine, R_prime);
     }
 
 
@@ -83,66 +87,79 @@ document.addEventListener('DOMContentLoaded', () => {
         const b = parseFloat(paramBInput.value);
 
         if (isNaN(a) || isNaN(b)) {
-            displayInfo("Invalid curve parameters (a or b).", true);
+            displayInfo("Invalid curve parameters (a or b).", 'error');
             return false; // Indicate failure
         }
 
         curve = new EllipticCurve(a, b);
         discriminantSpan.textContent = `Δ = ${curve.discriminant.toFixed(4)}`;
+
+        let infoMsg = `Curve y² = x³ + ${a}x + ${b} plotted.`;
+        let infoType = 'info';
         if (Math.abs(curve.discriminant) < 1e-9) {
-             displayInfo("Warning: Curve is singular (Δ = 0). Operations may fail.", true);
-        } else {
-            displayInfo(`Curve y² = x³ + ${a}x + ${b} plotted.`);
+             infoMsg = `Warning: Curve is singular (Δ = 0). Operations may fail. ${infoMsg}`;
+             infoType = 'warning';
         }
+        displayInfo(infoMsg, infoType);
+
 
         // Reset points if curve changes, as they might not be on the new curve
         P = null;
         Q = null;
         R = null;
+        R_prime = null; // Reset intermediate point
         lineP1 = null;
         lineP2 = null;
         pointPxInput.value = '';
         pointPyInput.value = '';
         pointQxInput.value = '';
         pointQyInput.value = '';
-        updateButtonStates();
         displayResult(POINT_INFINITY);
+        updateButtonStates();
 
-        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine);
+        // Update visualization call with null for R_prime
+        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine, R_prime);
         return true; // Indicate success
     }
 
     function plotPoint(xInput, yInput, pointVarSetter, pointLabel) {
         if (!curve) {
-            displayInfo("Please plot a curve first.", true);
+            displayInfo("Please plot a curve first.", 'error');
             return false;
         }
         const x = parseFloat(xInput.value);
         const y = parseFloat(yInput.value);
 
         if (isNaN(x) || isNaN(y)) {
-            displayInfo(`Invalid coordinates for point ${pointLabel}.`, true);
+            displayInfo(`Invalid coordinates for point ${pointLabel}.`, 'error');
             pointVarSetter(null); // Clear the point if input is invalid
+            R = null; R_prime = null; lineP1 = null; lineP2 = null; // Clear results/lines
             updateButtonStates();
-            updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine);
+            // Update visualization call with null for R_prime
+            updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine, R_prime);
             return false;
         }
 
         const point = new Point(x, y);
+        let infoMsg = `Point ${pointLabel}${point.toString()} plotted.`;
+        let infoType = 'info';
         if (!curve.isPointOnCurve(point)) {
-            displayInfo(`Point ${pointLabel}${point.toString()} is not on the current curve. Plotting anyway.`, true);
-            // Allow plotting even if not on curve for visualization/input purposes
-        } else {
-             displayInfo(`Point ${pointLabel}${point.toString()} plotted.`);
+            infoMsg = `Point ${pointLabel}${point.toString()} is NOT on the current curve. Operations disabled for this point. ${infoMsg}`;
+            infoType = 'warning';
+             // Keep point plotted for visual reference, but operations will be disabled by updateButtonStates
         }
+        displayInfo(infoMsg, infoType);
+
 
         pointVarSetter(point); // Use the setter function (setP or setQ)
         R = null; // Clear previous result
+        R_prime = null; // Clear previous intermediate point
         lineP1 = null; // Clear previous operation line
         lineP2 = null;
         displayResult(POINT_INFINITY);
         updateButtonStates();
-        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine);
+        // Update visualization call with null for R_prime
+        updateVisualization(curve, P, Q, R, lineP1, lineP2, isTangentLine, R_prime);
         return true;
     }
 
@@ -153,16 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
     plotQBtn.addEventListener('click', () => plotPoint(pointQxInput, pointQyInput, (q) => { Q = q; }, 'Q'));
 
     addPointsBtn.addEventListener('click', () => {
-        if (!curve || !P || !Q || P.isInfinity() || Q.isInfinity()) {
-            displayInfo("Need valid points P and Q on the curve.", true);
+        // Button state should prevent this if P or Q invalid/not on curve, but double check
+        if (!curve || !P || !Q || P.isInfinity() || Q.isInfinity() || !curve.isPointOnCurve(P) || !curve.isPointOnCurve(Q)) {
+            displayInfo("Need valid points P and Q located ON the curve.", 'error');
             return;
         }
-         if (!curve.isPointOnCurve(P) || !curve.isPointOnCurve(Q)) {
-             displayInfo("One or both points (P, Q) are not on the current curve. Cannot add.", true);
-             return;
-         }
 
-        const resultPoint = addPoints(P, Q, curve);
+        // Call the updated addPoints function
+        const operationResult = addPoints(P, Q, curve);
+        const resultPoint = operationResult.result;
+        const intermediatePoint = operationResult.intermediate; // Get R'
+
         displayResult(resultPoint);
         displayInfo(`Calculated P + Q. P=${P.toString()}, Q=${Q.toString()}`);
 
@@ -170,70 +188,63 @@ document.addEventListener('DOMContentLoaded', () => {
         lineP1 = P;
         lineP2 = Q;
         isTangentLine = false;
-        updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine);
+        R_prime = intermediatePoint; // Store R' for visualization
+
+        // Update visualization call WITH the intermediate point
+        updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine, R_prime);
     });
 
     doublePointBtn.addEventListener('click', () => {
-        if (!curve || !P || P.isInfinity()) {
-            displayInfo("Need a valid point P (not O) on the curve.", true);
+        // Button state should prevent this if P invalid/not on curve, but double check
+        if (!curve || !P || P.isInfinity() || !curve.isPointOnCurve(P)) {
+            displayInfo("Need a valid point P (not O) located ON the curve.", 'error');
             return;
         }
-         if (!curve.isPointOnCurve(P)) {
-             displayInfo("Point P is not on the current curve. Cannot double.", true);
-             return;
-         }
 
-        const resultPoint = doublePoint(P, curve);
+        // Call the updated doublePoint function
+        const operationResult = doublePoint(P, curve);
+        const resultPoint = operationResult.result;
+        const intermediatePoint = operationResult.intermediate; // Get R'
+
         displayResult(resultPoint);
-         displayInfo(`Calculated 2P. P=${P.toString()}`);
+        displayInfo(`Calculated 2P. P=${P.toString()}`);
 
         // Visualize the line used for doubling (tangent line)
         lineP1 = P;
         lineP2 = P; // Indicate tangent at P
         isTangentLine = true;
-         updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine);
+        R_prime = intermediatePoint; // Store R' for visualization
+
+        // Update visualization call WITH the intermediate point
+        updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine, R_prime);
     });
 
     scalarMultiplyBtn.addEventListener('click', () => {
-        if (!curve || !P || P.isInfinity()) {
-            displayInfo("Need a valid point P (not O) on the curve.", true);
+         // Button state should prevent this if P invalid/not on curve, but double check
+        if (!curve || !P || P.isInfinity() || !curve.isPointOnCurve(P)) {
+            displayInfo("Need a valid point P (not O) located ON the curve.", 'error');
             return;
         }
-        if (!curve.isPointOnCurve(P)) {
-             displayInfo("Point P is not on the current curve. Cannot multiply.", true);
-             return;
-         }
 
         const k = parseInt(scalarKInput.value);
         if (isNaN(k)) {
-            displayInfo("Invalid scalar value k.", true);
+            displayInfo("Invalid scalar value k.", 'error');
             return;
         }
-         if (k === 0) {
-             displayResult(POINT_INFINITY);
-             displayInfo(`Calculated 0 * P = O.`);
-             lineP1 = null; lineP2 = null; // No line for k=0
-             updateVisualization(curve, P, Q, POINT_INFINITY, lineP1, lineP2, false);
-             return;
-         }
-         if (k === 1) {
-             displayResult(P);
-             displayInfo(`Calculated 1 * P = P.`);
-             lineP1 = null; lineP2 = null; // No line for k=1
-             updateVisualization(curve, P, Q, P, lineP1, lineP2, false);
-             return;
-         }
-
-
+        // scalarMultiply now handles k=0 internally
         const resultPoint = scalarMultiply(k, P, curve);
-        displayResult(resultPoint);
-         displayInfo(`Calculated ${k} * P. P=${P.toString()}`);
 
-        // Don't draw a line for scalar multiplication, as it's many steps
+        displayResult(resultPoint);
+        displayInfo(`Calculated ${k} * P. P=${P.toString()}`);
+
+        // Don't draw intermediate point or line for scalar multiplication result
         lineP1 = null;
         lineP2 = null;
         isTangentLine = false;
-        updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine);
+        R_prime = null; // No single R' for scalar multiplication
+
+        // Update visualization call with null for R_prime
+        updateVisualization(curve, P, Q, resultPoint, lineP1, lineP2, isTangentLine, R_prime);
 
          // TODO: Could add visualization of intermediate steps for scalar multiplication (advanced)
     });
@@ -243,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Canvas click listener (from visualization.js)
     canvasElement.addEventListener('canvasClick', (e) => {
         if (!curve) {
-            displayInfo("Plot a curve before selecting points.", true);
+            displayInfo("Plot a curve before selecting points.", 'warning');
             return;
         }
 
@@ -261,18 +272,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Find which branch (positive or negative y) is closer to the click
                 closestY = (Math.abs(y - yValues[0]) < Math.abs(y - yValues[1])) ? yValues[0] : yValues[1];
             }
-            targetPoint = new Point(x, closestY);
+            // Snap x to the input value that yields the y's to avoid minor discrepancy
+            const snappedX = x; // Or recalculate x based on y if needed, but this is simpler
+            targetPoint = new Point(snappedX, closestY);
 
              // Decide whether to set P or Q
-             // Simple logic: if P is not set, set P. Otherwise, set Q.
-             if (!P || P.isInfinity()) {
+             // Simple logic: if P is not set OR not on curve, set P. Otherwise, set Q.
+             const pIsSetAndOnCurve = P && !P.isInfinity() && curve.isPointOnCurve(P);
+
+             if (!pIsSetAndOnCurve) {
                  pointPxInput.value = targetPoint.x.toFixed(4);
                  pointPyInput.value = targetPoint.y.toFixed(4);
                  plotPoint(pointPxInput, pointPyInput, (p) => { P = p; }, 'P');
              } else {
                  pointQxInput.value = targetPoint.x.toFixed(4);
                  pointQyInput.value = targetPoint.y.toFixed(4);
-                  plotPoint(pointQxInput, pointQyInput, (q) => { Q = q; }, 'Q');
+                 plotPoint(pointQxInput, pointQyInput, (q) => { Q = q; }, 'Q');
              }
 
         } else {

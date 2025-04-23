@@ -13,6 +13,16 @@ let isDragging = false;
 let dragStartX, dragStartY;
 let initialOriginX, initialOriginY;
 
+// --- State for Plotted Elements ---
+let currentCurve = null;
+let currentP = null;
+let currentQ = null;
+let currentResult = null; // Point R
+let currentRPrime = null; // Intermediate Point R'
+let currentLineP1 = null; // Point for drawing secant/tangent
+let currentLineP2 = null; // Point for drawing secant/tangent
+let isTangentLine = false;
+
 // --- Transformation Functions ---
 function toCanvasX(x) {
     return originX + x * scale;
@@ -27,6 +37,10 @@ function fromCanvasX(canvasX) {
 }
 
 function fromCanvasY(canvasY) {
+    // Check for scale being zero to prevent division by zero
+    if (Math.abs(scale) < 1e-9) {
+        return 0; // Or handle appropriately, maybe return NaN or throw error
+    }
     return (canvasY - originY) / -scale; // Y is inverted
 }
 
@@ -45,6 +59,11 @@ function drawAxes() {
 
     // --- Grid Lines ---
     const step = 1; // Grid lines every 1 unit
+    // Check if scale is valid before proceeding
+    if (Math.abs(scale) < 1e-9) {
+        console.error("Scale is too small or zero, cannot draw axes.");
+        return; // Prevent further drawing if scale is invalid
+    }
     const minX = fromCanvasX(0);
     const maxX = fromCanvasX(canvasWidth);
     const minY = fromCanvasY(canvasHeight);
@@ -114,16 +133,19 @@ function drawAxes() {
 // Draws the elliptic curve
 function drawCurve(curve, color = '#4a90e2') {
     if (!curve) return;
+     // Check scale before proceeding
+    if (Math.abs(scale) < 1e-9) return;
 
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
     let firstPoint = true;
-    const step = 1 / scale; // Adjust step based on zoom for smoothness
+    const step = 1 / scale; // Adjust step based on zoom for smoothness - BECOMES LARGE if scale is small!
+    const canvasStep = 1; // Draw pixel by pixel on canvas for consistent rendering
 
     // Draw upper branch (y > 0)
-    for (let cx = 0; cx < canvasWidth; cx++) {
+    for (let cx = 0; cx < canvasWidth; cx += canvasStep) {
         const x = fromCanvasX(cx);
         const yValues = curve.getY(x);
         if (yValues.length > 0) {
@@ -144,7 +166,7 @@ function drawCurve(curve, color = '#4a90e2') {
     // Draw lower branch (y < 0)
     ctx.beginPath();
     firstPoint = true;
-     for (let cx = 0; cx < canvasWidth; cx++) {
+     for (let cx = 0; cx < canvasWidth; cx += canvasStep) {
         const x = fromCanvasX(cx);
         const yValues = curve.getY(x);
          if (yValues.length > 1) { // Needs two y values
@@ -174,25 +196,34 @@ function drawCurve(curve, color = '#4a90e2') {
 }
 
 
-// Draws a point P on the canvas
-function drawPoint(point, color = 'red', label = '', radius = 5) {
+// Draws a point on the canvas
+// Added optional 'style' parameter ('fill', 'stroke')
+function drawPoint(point, color = 'red', label = '', radius = 5, style = 'fill') {
     if (!point || point.isInfinity()) return;
 
     const cx = toCanvasX(point.x);
     const cy = toCanvasY(point.y);
 
-    // Draw filled circle
-    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-    ctx.fill();
+
+    if (style === 'fill') {
+        ctx.fillStyle = color;
+        ctx.fill();
+    } else if (style === 'stroke') {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
 
     // Draw label
     if (label) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = '#000'; // Always black label?
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(label, cx, cy - radius - 3); // Position label above the point
+        // Adjust label position based on style
+        const labelOffset = style === 'stroke' ? radius + 5 : radius + 3;
+        ctx.fillText(label, cx, cy - labelOffset);
     }
      ctx.textAlign = 'start'; // Reset alignment
 }
@@ -200,29 +231,77 @@ function drawPoint(point, color = 'red', label = '', radius = 5) {
 
 // Draws a line between two points P and Q (or a tangent line at P)
 function drawLine(p1, p2, color = 'green', isTangent = false) {
-     if (!p1 || !p2 || p1.isInfinity() || p2.isInfinity()) return;
+     if (!p1 || !p2 || p1.isInfinity() || (p2.isInfinity() && !isTangent) ) return; // Allow tangent if p2 is infinity conceptually
 
     const x1 = p1.x; const y1 = p1.y;
-    const x2 = p2.x; const y2 = p2.y;
+    let x2, y2;
+
+     // For tangent, p2 might be the same as p1 conceptually, we need the slope
+     if (isTangent) {
+        // Calculate tangent slope (ensure curve object is available or passed)
+        // This logic might be better placed where drawLine is called,
+        // passing slope directly might be cleaner.
+        // For now, assume tangent means line goes through p1 with correct slope.
+        // We'll determine the slope when calculating intersections below.
+        // Just use P1's coords for now.
+        x2 = p1.x;
+        y2 = p1.y;
+
+     } else {
+         // Normal line between two distinct points
+         if (p2.isInfinity()) return; // Cannot draw line to infinity
+         x2 = p2.x;
+         y2 = p2.y;
+     }
+
     const tolerance = 1e-9;
 
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
     ctx.setLineDash(isTangent ? [5, 5] : []); // Dashed line for tangent
 
-    // Calculate line equation: Ax + By + C = 0 or x = constant
-    let m, b;
+    // Calculate line equation parameters
+    let m, b; // slope, y-intercept
     let isVertical = false;
 
-    if (Math.abs(x1 - x2) < tolerance) { // Vertical line
-        isVertical = true;
+    if (isTangent) {
+        // Calculate tangent slope m = (3x₁² + a) / (2y₁)
+        if (Math.abs(y1) < tolerance) { // Vertical tangent at y=0
+            isVertical = true;
+        } else if (currentCurve) { // Need curve parameters
+            const numerator = 3 * Math.pow(x1, 2) + currentCurve.a;
+            const denominator = 2 * y1;
+            if (Math.abs(denominator) < tolerance) { // Should not happen if y1 != 0
+                 console.error("Tangent calculation error: denominator zero unexpectedly.");
+                 isVertical = true; // Treat as vertical if error
+            } else {
+                m = numerator / denominator;
+                b = y1 - m * x1;
+            }
+        } else {
+            console.error("Cannot calculate tangent slope: currentCurve is not defined.");
+            ctx.setLineDash([]); // Reset dash
+            return; // Cannot draw tangent without curve info
+        }
     } else {
-        m = (y2 - y1) / (x1 - x2); // Slope
-        b = y1 - m * x1; // Y-intercept
+        // Secant line between P and Q
+        if (Math.abs(x1 - x2) < tolerance) { // Vertical line
+            isVertical = true;
+        } else {
+            m = (y2 - y1) / (x1 - x2); // Slope
+            b = y1 - m * x1; // Y-intercept
+        }
     }
+
 
     // Find intersection points with canvas boundaries
     let startX, startY, endX, endY;
+    // Check scale before proceeding with coordinate transformations
+    if (Math.abs(scale) < 1e-9) {
+        console.error("Scale is too small or zero, cannot draw line.");
+         ctx.setLineDash([]); // Reset dash
+        return;
+    }
 
     if (isVertical) {
         startX = toCanvasX(x1);
@@ -233,8 +312,8 @@ function drawLine(p1, p2, color = 'green', isTangent = false) {
         // Intersect with y=canvasTop (y_world = fromCanvasY(0)) and y=canvasBottom (y_world = fromCanvasY(height))
         const worldYTop = fromCanvasY(0);
         const worldYBottom = fromCanvasY(canvasHeight);
-        const canvasX_at_Top = toCanvasX((worldYTop - b) / m);
-        const canvasX_at_Bottom = toCanvasX((worldYBottom - b) / m);
+        const canvasX_at_Top = (Math.abs(m) > tolerance) ? toCanvasX((worldYTop - b) / m) : (b > worldYBottom && b < worldYTop ? 0 : -1); // Handle horizontal lines
+        const canvasX_at_Bottom = (Math.abs(m) > tolerance) ? toCanvasX((worldYBottom - b) / m) : (b > worldYBottom && b < worldYTop ? 0 : -1);
 
         // Intersect with x=canvasLeft (x_world = fromCanvasX(0)) and x=canvasRight (x_world = fromCanvasX(width))
         const worldXLeft = fromCanvasX(0);
@@ -242,31 +321,44 @@ function drawLine(p1, p2, color = 'green', isTangent = false) {
         const canvasY_at_Left = toCanvasY(m * worldXLeft + b);
         const canvasY_at_Right = toCanvasY(m * worldXRight + b);
 
-        // Collect valid intersection points (within canvas bounds)
+        // Collect valid intersection points (within canvas bounds + small buffer)
+        const buffer = 1;
         const points = [];
-        if (canvasX_at_Top >= 0 && canvasX_at_Top <= canvasWidth) points.push({ x: canvasX_at_Top, y: 0 });
-        if (canvasX_at_Bottom >= 0 && canvasX_at_Bottom <= canvasWidth) points.push({ x: canvasX_at_Bottom, y: canvasHeight });
-        if (canvasY_at_Left >= 0 && canvasY_at_Left <= canvasHeight) points.push({ x: 0, y: canvasY_at_Left });
-        if (canvasY_at_Right >= 0 && canvasY_at_Right <= canvasHeight) points.push({ x: canvasWidth, y: canvasY_at_Right });
+        if (canvasX_at_Top >= -buffer && canvasX_at_Top <= canvasWidth + buffer) points.push({ x: canvasX_at_Top, y: 0 });
+        if (canvasX_at_Bottom >= -buffer && canvasX_at_Bottom <= canvasWidth + buffer) points.push({ x: canvasX_at_Bottom, y: canvasHeight });
+        if (canvasY_at_Left >= -buffer && canvasY_at_Left <= canvasHeight + buffer) points.push({ x: 0, y: canvasY_at_Left });
+        if (canvasY_at_Right >= -buffer && canvasY_at_Right <= canvasHeight + buffer) points.push({ x: canvasWidth, y: canvasY_at_Right });
 
-        // Need exactly two points to draw the line segment across the canvas
+        // Find the two points furthest apart among the valid intersections
+        let maxDist = -1;
+        let bestPair = null;
+
         if (points.length >= 2) {
-             // Simple approach: Use the first two valid points found.
-             // A more robust approach would find the two 'outermost' valid intersection points.
-            startX = points[0].x;
-            startY = points[0].y;
-            endX = points[1].x;
-            endY = points[1].y;
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const distSq = Math.pow(points[i].x - points[j].x, 2) + Math.pow(points[i].y - points[j].y, 2);
+                    if (distSq > maxDist) {
+                        maxDist = distSq;
+                        bestPair = [points[i], points[j]];
+                    }
+                }
+            }
+        }
+
+        if (bestPair) {
+             startX = bestPair[0].x;
+             startY = bestPair[0].y;
+             endX = bestPair[1].x;
+             endY = bestPair[1].y;
         } else {
-             // Fallback or error: draw line between the points if they are on canvas
+            // Fallback or error: draw line between the original points if they are on canvas
             console.warn("Could not determine line intersections with canvas boundary.");
             startX = toCanvasX(x1);
             startY = toCanvasY(y1);
-            endX = toCanvasX(x2);
+            endX = toCanvasX(x2); // Use x1,y1 for tangent fallback too
             endY = toCanvasY(y2);
         }
     }
-
 
     // Draw the line segment
     ctx.beginPath();
@@ -276,14 +368,51 @@ function drawLine(p1, p2, color = 'green', isTangent = false) {
     ctx.setLineDash([]); // Reset line dash
 }
 
+// Draw the reflection line between R' and R
+function drawReflectionLine(r_prime, r) {
+    if (!r_prime || r_prime.isInfinity() || !r || r.isInfinity()) return;
+    // Check scale before proceeding
+    if (Math.abs(scale) < 1e-9) return;
+
+    // Ensure they have the same x-coordinate (within tolerance)
+    const tolerance = 1e-6;
+    if (Math.abs(r_prime.x - r.x) > tolerance) {
+        console.warn("R' and R do not have the same x-coordinate for reflection line.", r_prime, r);
+        return;
+    }
+    // Don't draw if points are identical (e.g., y=0 case)
+    if (r_prime.equals(r)) {
+        return;
+    }
+
+    const cx = toCanvasX(r.x);
+    const cy_prime = toCanvasY(r_prime.y);
+    const cy_r = toCanvasY(r.y);
+
+    ctx.strokeStyle = '#aaa'; // Light grey for reflection line
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]); // Dashed line
+    ctx.beginPath();
+    ctx.moveTo(cx, cy_prime);
+    ctx.lineTo(cx, cy_r);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash
+}
+
 
 // --- Canvas Event Listeners for Pan/Zoom/Click ---
 
 // Zoom
 document.getElementById('zoom-slider').addEventListener('input', (e) => {
-    scale = parseInt(e.target.value);
+    const newScale = parseInt(e.target.value);
+    // Prevent scale from becoming zero or too small
+    if (newScale < 1) {
+        scale = 1; // Set a minimum scale value
+        e.target.value = scale; // Update slider position
+    } else {
+        scale = newScale;
+    }
     // TODO: Zoom towards mouse cursor instead of center? (More complex)
-    // For simplicity, zoom centered on current origin
     requestAnimationFrame(redrawCanvas); // Redraw after zoom change
 });
 
@@ -323,14 +452,37 @@ canvas.addEventListener('mousemove', (e) => {
      document.getElementById('pan-x-slider').value = originX - canvasWidth / 2;
      document.getElementById('pan-y-slider').value = originY - canvasHeight / 2;
 
-
     requestAnimationFrame(redrawCanvas); // Redraw while dragging
 });
 
-canvas.addEventListener('mouseup', () => {
+canvas.addEventListener('mouseup', (e) => {
+    const potentialClick = isDragging; // Store dragging state before resetting
     if (isDragging) {
         isDragging = false;
-         canvas.style.cursor = 'crosshair';
+        canvas.style.cursor = 'crosshair';
+    }
+
+    // --- Click Logic ---
+    // Only register click if not dragging significantly
+    const clickThreshold = 3; // Pixels moved threshold
+    const movedX = Math.abs(e.clientX - canvas.offsetLeft - dragStartX);
+    const movedY = Math.abs(e.clientY - canvas.offsetTop - dragStartY);
+
+    if (potentialClick && movedX <= clickThreshold && movedY <= clickThreshold) {
+         // If mouseup happened after mousedown without significant move, treat as click
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Check scale before transforming coordinates
+        if (Math.abs(scale) < 1e-9) return;
+
+        const worldX = fromCanvasX(clickX);
+        const worldY = fromCanvasY(clickY);
+
+        // Inform main script about the click coordinates
+        const event = new CustomEvent('canvasClick', { detail: { x: worldX, y: worldY } });
+        canvas.dispatchEvent(event);
     }
 });
 
@@ -341,68 +493,62 @@ canvas.addEventListener('mouseleave', () => {
     }
 });
 
-// Click to Select Point
-canvas.addEventListener('click', (e) => {
-     // Only register click if not dragging (mouseup clears isDragging)
-     if (Math.abs(e.clientX - canvas.offsetLeft - dragStartX) > 3 ||
-         Math.abs(e.clientY - canvas.offsetTop - dragStartY) > 3) {
-         // If moved significantly between mousedown and mouseup, likely a drag, not a click
-         return;
-     }
-
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
-
-    const worldX = fromCanvasX(clickX);
-    const worldY = fromCanvasY(clickY);
-
-    // Inform main script about the click coordinates
-    // The main script will decide how to use this (e.g., find nearest point on curve)
-    const event = new CustomEvent('canvasClick', { detail: { x: worldX, y: worldY } });
-    canvas.dispatchEvent(event);
-});
-
 // --- Redraw Function ---
 // This function needs to be called from main.js whenever the state changes
-// It will redraw based on the current curve, points, etc. (managed in main.js)
-let currentCurve = null;
-let currentP = null;
-let currentQ = null;
-let currentResult = null;
-let currentLineP1 = null;
-let currentLineP2 = null;
-let isTangentLine = false;
-
 function redrawCanvas() {
-    clearCanvas();
-    drawAxes();
-    if (currentCurve) {
-        drawCurve(currentCurve);
-    }
-    if (currentLineP1 && currentLineP2) {
-        drawLine(currentLineP1, currentLineP2, isTangentLine ? '#ff8c00' : '#2ca02c', isTangentLine); // Orange for tangent, Green for secant
-    }
-    if (currentP) {
-        drawPoint(currentP, '#d62728', 'P'); // Red P
-    }
-    if (currentQ) {
-        drawPoint(currentQ, '#1f77b4', 'Q'); // Blue Q
-    }
-    if (currentResult && !currentResult.isInfinity()) {
-        drawPoint(currentResult, '#9467bd', 'R', 7); // Purple Result, slightly larger
-    }
+    requestAnimationFrame(() => {
+        clearCanvas();
+        drawAxes();
+        if (currentCurve) {
+            drawCurve(currentCurve);
+        }
+        // Draw line first so points are on top
+        if (currentLineP1) {
+            // Pass P1 and P2 (or just P1 if tangent)
+            drawLine(currentLineP1, isTangentLine ? currentLineP1 : currentLineP2, isTangentLine ? '#ff8c00' : '#2ca02c', isTangentLine); // Orange for tangent, Green for secant
+        }
 
+        // Draw points P and Q
+        if (currentP) {
+            drawPoint(currentP, '#d62728', 'P'); // Red P
+        }
+        if (currentQ) {
+            drawPoint(currentQ, '#1f77b4', 'Q'); // Blue Q
+        }
+
+        // Draw intermediate point R' (if it exists) - Draw before R
+        if (currentRPrime && !currentRPrime.isInfinity()) {
+            // Use a distinct style for R' - e.g., smaller, stroke only, grey
+            drawPoint(currentRPrime, '#888', "R'", 4, 'stroke'); // Grey outline, radius 4
+        }
+
+        // Draw Result R
+        if (currentResult && !currentResult.isInfinity()) {
+            drawPoint(currentResult, '#9467bd', 'R', 7); // Purple Result, radius 7
+        }
+
+        // Draw reflection line between R' and R
+        drawReflectionLine(currentRPrime, currentResult);
+
+    });
 }
 
 // Function called by main.js to update the visual elements
-function updateVisualization(curve, P, Q, result, lineP1, lineP2, isTangent) {
+// Added r_prime as the last argument
+function updateVisualization(curve, P, Q, result, lineP1, lineP2, isTangent, r_prime) {
     currentCurve = curve;
     currentP = P;
     currentQ = Q;
-    currentResult = result;
+    currentResult = result; // R
+    currentRPrime = r_prime; // R'
     currentLineP1 = lineP1;
     currentLineP2 = lineP2;
     isTangentLine = isTangent;
-    requestAnimationFrame(redrawCanvas); // Schedule a redraw
+    // Check scale before redrawing
+    if (Math.abs(scale) < 1e-9) {
+        console.error("Scale is too small, cannot redraw canvas.");
+        // Optionally display an error message to the user on the page
+        return;
+    }
+    redrawCanvas(); // Schedule a redraw
 }

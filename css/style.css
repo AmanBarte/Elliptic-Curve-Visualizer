@@ -1,129 +1,443 @@
-body {
-    font-family: sans-serif;
-    line-height: 1.6;
-    margin: 20px;
-    background-color: #f4f4f4;
+/* --- Base Variables and Body --- */
+:root {
+    --bg-color: #f8f9fa; /* Lighter grey */
+    --card-bg-color: #ffffff;
+    --primary-color: #4a54e1; /* Original primary blue */
+    --primary-hover-color: #3a42b1; /* Darker blue */
+    --primary-color-rgb: 74, 84, 225; /* RGB version for box-shadow alpha */
+    --accent-color: #2a9d8f; /* Teal for results */
+    --error-color: #e76f51; /* Orange/Red for info/errors */
+    --text-color: #343a40; /* Darker grey for text */
+    --text-muted-color: #6c757d; /* Muted grey */
+    --border-color: #dee2e6; /* Lighter border color */
+    --shadow-color: rgba(0, 0, 0, 0.08); /* Softer shadow */
+    --focus-shadow-color: rgba(var(--primary-color-rgb), 0.25); /* Consistent focus shadow color */
+
+    --font-family-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --base-font-size: 16px;
+    --base-line-height: 1.6;
+    --border-radius: 6px; /* Consistent border radius */
+    --transition-speed: 0.2s; /* Consistent transition speed */
 }
 
+body {
+    font-family: var(--font-family-sans-serif);
+    line-height: var(--base-line-height);
+    margin: 20px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: var(--base-font-size);
+}
+
+/* --- Headings --- */
 h1, h2 {
     text-align: center;
-    color: #333;
+    color: var(--text-color);
+    margin-bottom: 1.5em;
+    font-weight: 500;
+}
+h1 {
+    font-size: 2rem;
+    font-weight: 700;
+}
+h2 {
+    font-size: 1.5rem;
+    margin-top: 0;
 }
 
+/* --- Layout Containers --- */
 .container {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 25px;
     justify-content: center;
 }
 
 .controls, .visualization {
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    background-color: var(--card-bg-color);
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 8px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    transition: box-shadow var(--transition-speed) ease; /* Add transition to cards */
 }
+/* Optional: Slightly lift card on hover */
+/*
+.controls:hover, .visualization:hover {
+     box-shadow: 0 6px 12px var(--shadow-color);
+}
+*/
 
 .controls {
-    flex-basis: 350px; /* Minimum width for controls */
+    flex-basis: 350px;
     flex-grow: 1;
 }
 
 .visualization {
-    flex-basis: 620px; /* Accommodate canvas width + padding */
+    flex-basis: 620px;
     flex-grow: 2;
-    text-align: center; /* Center canvas */
+    text-align: center;
 }
 
 
+/* --- Form Elements (Improved Layout) --- */
 label {
-    display: inline-block; /* Keep labels next to inputs */
+    display: inline-block;
     margin-right: 5px;
-    margin-bottom: 5px; /* Add space below */
-    color: #555;
+    margin-bottom: 8px;
+    color: var(--text-muted-color);
+    font-size: 0.9em;
+    font-weight: 500;
 }
 
 input[type="number"] {
-    width: 70px; /* Adjust width as needed */
-    padding: 8px;
-    margin-right: 10px; /* Space after input */
-    margin-bottom: 10px; /* Space below input row */
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    width: 80px;
+    padding: 8px 10px;
+    margin-right: 0;
+    margin-bottom: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: #fff;
+    transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease; /* Consistent speed */
 }
 
+/* Use :focus-visible for keyboard focus indication */
+input[type="number"]:focus-visible {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-shadow-color);
+}
+
+/* --- Buttons --- */
 button {
-    background-color: #5c67f2;
+    background-color: var(--primary-color);
     color: white;
     border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
+    padding: 9px 16px;
+    border-radius: var(--border-radius);
     cursor: pointer;
-    margin: 5px 5px 5px 0; /* Add some margin around buttons */
-    transition: background-color 0.2s ease;
+    margin: 5px 5px 5px 0;
+    transition: background-color var(--transition-speed) ease-in-out, box-shadow var(--transition-speed) ease, transform var(--transition-speed) ease; /* Consistent speed */
+    font-weight: 500;
+    font-size: 0.95em;
 }
 
 button:hover {
-    background-color: #4a54e1;
+    background-color: var(--primary-hover-color);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+button:active {
+    transform: scale(0.98); /* Slightly shrink button when pressed */
 }
 
 button:disabled {
-    background-color: #ccc;
+    background-color: #adb5bd;
+    color: #f8f9fa;
     cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+/* Focus style for buttons */
+button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-shadow-color);
+}
+button:disabled:focus-visible {
+    box-shadow: none; /* No focus ring on disabled buttons */
 }
 
 
+/* --- Canvas & Controls --- */
 #ec-canvas {
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-color);
     background-color: #fff;
-    display: block; /* Remove extra space below canvas */
-    margin: 10px auto; /* Center canvas */
+    display: block;
+    margin: 15px auto;
     cursor: crosshair;
-}
-
-.point-input {
-    margin-bottom: 10px;
-}
-
-#result-text {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #2a9d8f; /* Teal color for results */
-    min-height: 1.5em; /* Prevent layout shift */
-}
-
-#info-text {
-    color: #e76f51; /* Orange/Red for info/errors */
-    min-height: 1.5em; /* Prevent layout shift */
-    font-style: italic;
-}
-
-#discriminant {
-    font-style: italic;
-    color: #666;
-}
-
-hr {
-    border: 0;
-    height: 1px;
-    background-color: #eee;
-    margin: 20px 0;
+    border-radius: var(--border-radius);
+    max-width: 100%;
+    height: auto;
+    transition: border-color var(--transition-speed) ease; /* Add transition */
 }
 
 .canvas-controls {
-    margin-top: 15px;
+    margin-top: 20px;
     display: flex;
-    align-items: center; /* Vertically align items */
-    justify-content: center; /* Center items horizontally */
-    gap: 10px; /* Space between controls */
-    flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .canvas-controls label {
-    margin-bottom: 0; /* Remove bottom margin for inline display */
+    margin-bottom: 0;
 }
 
 .canvas-controls input[type="range"] {
-    width: 120px; /* Adjust slider width */
-    vertical-align: middle; /* Align slider with label */
+    width: 120px;
+    height: 5px; /* Slider track height */
+    vertical-align: middle;
+    cursor: pointer;
+    background: var(--border-color); /* Track background */
+    border-radius: 3px;
+    appearance: none; /* Override default look */
+    transition: background-color var(--transition-speed) ease;
+}
+/* Webkit (Chrome, Safari) */
+.canvas-controls input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    margin-top: -5.5px; /* Center thumb on track */
+    transition: background-color var(--transition-speed) ease;
+}
+.canvas-controls input[type=range]:hover::-webkit-slider-thumb {
+     background: var(--primary-hover-color);
+}
+/* Firefox */
+.canvas-controls input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    transition: background-color var(--transition-speed) ease;
+}
+.canvas-controls input[type=range]:hover::-moz-range-thumb {
+     background: var(--primary-hover-color);
+}
+/* Focus style for sliders */
+.canvas-controls input[type="range"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-shadow-color);
+}
+/* Style track for Firefox */
+.canvas-controls input[type=range]::-moz-range-track {
+    width: 100%;
+    height: 5px;
+    cursor: pointer;
+    background: var(--border-color);
+    border-radius: 3px;
+    border: none; /* Firefox might add a border */
+}
+
+
+
+/* --- Point Input Specific Layout --- */
+.point-input {
+    margin-bottom: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.point-input input[type="number"] {
+    width: 80px;
+}
+.point-input > label:first-of-type {
+     min-width: 30px;
+     text-align: right;
+     margin-right: 0;
+}
+.point-input button {
+    margin: 0;
+}
+
+
+/* --- Result and Info Text --- */
+#result-text {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: var(--accent-color);
+    min-height: 1.5em;
+    word-wrap: break-word;
+    background-color: #f0f9f8; /* Slightly different bg */
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(var(--accent-color-rgb, 42, 157, 143), 0.3); /* Use RGB with alpha for border */
+    margin-top: 10px;
+    transition: background-color var(--transition-speed) ease, border-color var(--transition-speed) ease;
+    /* Define --accent-color-rgb in :root if needed for advanced styling */
+}
+/* Define --accent-color-rgb in :root if needed */
+:root {
+    /* ... other variables ... */
+    --accent-color-rgb: 42, 157, 143;
+}
+
+
+#info-text {
+    color: var(--text-muted-color);
+    min-height: 1.5em;
+    font-style: normal;
+    font-size: 0.95em;
+    word-wrap: break-word;
+    margin-top: 5px;
+    padding: 5px 8px;
+    border-radius: var(--border-radius);
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+#info-text.error {
+    color: var(--error-color);
+    font-weight: 500;
+    background-color: rgba(var(--error-color-rgb, 231, 111, 81), 0.1); /* Use RGB with alpha */
+     /* Define --error-color-rgb in :root if needed */
+}
+#info-text.warning {
+    color: #b8860b; /* Darker warning text */
+    font-weight: 500;
+     background-color: rgba(255, 193, 7, 0.15); /* Amber warning bg */
+}
+/* Define --error-color-rgb in :root if needed */
+:root {
+    /* ... other variables ... */
+    --error-color-rgb: 231, 111, 81;
+}
+
+#discriminant {
+    font-style: normal;
+    color: var(--text-muted-color);
+    font-size: 0.9em;
+}
+
+/* --- Horizontal Rule --- */
+hr {
+    border: 0;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 25px 0;
+}
+
+/* --- Responsiveness --- */
+@media (max-width: 1024px) {
+    .container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+    }
+    .controls, .visualization {
+        flex-basis: auto;
+        width: auto;
+        max-width: none;
+    }
+    .visualization {
+       order: -1;
+    }
+    #ec-canvas {
+       max-width: 100%;
+       height: auto;
+       aspect-ratio: 1 / 1;
+       max-height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        margin: 15px;
+    }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.4rem; }
+    .controls, .visualization {
+        padding: 20px;
+    }
+    input[type="number"] {
+        padding: 7px 8px;
+        width: 70px;
+    }
+    button {
+        padding: 8px 14px;
+        font-size: 0.9em;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.3rem; }
+    .canvas-controls {
+        gap: 8px;
+        justify-content: space-around;
+    }
+    .canvas-controls input[type="range"] {
+        width: 100px;
+    }
+    /* Stack point input elements vertically */
+    .point-input {
+        flex-direction: column;
+        align-items: flex-start; /* Align to left */
+        gap: 5px;
+    }
+    .point-input > label:first-of-type {
+        min-width: auto; /* Reset min-width */
+        text-align: left;
+    }
+     .point-input input[type="number"] {
+        width: 100%; /* Make inputs take full width */
+    }
+     .point-input button {
+        width: 100%; /* Make button take full width */
+        margin-top: 5px; /* Add space above button */
+    }
+}
+/* --- Legend Styling --- */
+.legend {
+    margin-top: 20px; /* Space above legend */
+    padding: 10px 15px;
+    background-color: var(--bg-color); /* Use body background or card background */
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    text-align: left; /* Align text left */
+    max-width: 300px; /* Optional: limit width */
+    margin-left: auto; /* Center the legend block if max-width is set */
+    margin-right: auto;
+}
+
+.legend h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--text-color);
+    text-align: center; /* Center the legend title */
+}
+
+.legend ul {
+    list-style: none; /* Remove default bullet points */
+    padding: 0;
+    margin: 0;
+}
+
+.legend li {
+    margin-bottom: 6px; /* Space between legend items */
+    font-size: 0.9em;
+    color: var(--text-muted-color);
+    display: flex; /* Align color swatch and text */
+    align-items: center;
+}
+
+.legend-color {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin-right: 8px; /* Space between swatch and text */
+    border-radius: 3px; /* Slightly rounded square */
+    border: 1px solid rgba(0,0,0,0.1); /* Subtle border for light colors */
+}
+
+/* Define the colors used in visualization.js */
+.legend-color.p-color { background-color: #d62728; } /* Red P */
+.legend-color.q-color { background-color: #1f77b4; } /* Blue Q */
+.legend-color.r-color { background-color: #9467bd; } /* Purple R */
+.legend-color.secant-color { background-color: #2ca02c; } /* Green Secant */
+.legend-color.tangent-color { background-color: #ff8c00; } /* Orange Tangent */
+
+/* Add media query adjustment if needed */
+@media (max-width: 768px) {
+    .legend {
+        max-width: 90%; /* Allow more width on smaller screens */
+    }
 }
